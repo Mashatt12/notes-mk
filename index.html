@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dashboard Catatan Kuliah</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://cdn.quilljs.com/1.3.6/quill.snow.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+      #editor-container {
+        height: 350px;
+      }
+      .ql-editor {
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 flex h-screen overflow-hidden font-sans">
+    <aside class="w-72 bg-indigo-900 text-white flex flex-col shadow-xl">
+      <div
+        class="p-6 text-2xl font-bold border-b border-indigo-800 flex items-center gap-2"
+      >
+        <span>📚</span> MyNotes
+      </div>
+      <div class="p-4 border-b border-indigo-800">
+        <input
+          id="newMK"
+          type="text"
+          placeholder="Tambah MK..."
+          class="w-full p-2 text-black rounded text-sm"
+        />
+        <button
+          onclick="addSubject()"
+          class="w-full mt-2 bg-emerald-500 hover:bg-emerald-600 py-2 rounded text-sm font-bold"
+        >
+          ＋ Tambah MK
+        </button>
+      </div>
+      <nav
+        id="listMK"
+        class="flex-1 overflow-y-auto p-4 space-y-2 text-sm"
+      ></nav>
+    </aside>
+
+    <main class="flex-1 flex flex-col">
+      <header
+        class="bg-white shadow-md p-4 flex justify-between items-center px-8"
+      >
+        <div>
+          <h2 id="currentTitle" class="text-xl font-bold text-gray-800">
+            Pilih MK
+          </h2>
+          <p id="subTitle" class="text-sm text-gray-500">
+            Pilih mata kuliah di sidebar
+          </p>
+        </div>
+        <div id="controls" class="hidden flex items-center gap-2">
+          <select
+            id="meetSelect"
+            class="border p-2 rounded text-sm"
+            onchange="loadExistingNote()"
+          >
+            <option value="" selected disabled>Pilih Ptm</option>
+            <script>
+              for (let i = 1; i <= 16; i++)
+                document.write(`<option value="${i}">Pertemuan ${i}</option>`);
+            </script>
+          </select>
+          <button
+            onclick="saveNote()"
+            class="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-bold"
+          >
+            Simpan
+          </button>
+          <button
+            onclick="showRekap()"
+            class="bg-amber-500 text-white px-4 py-2 rounded text-sm font-bold"
+          >
+            Rekap
+          </button>
+          <button
+            onclick="cetakPDF()"
+            class="bg-red-500 text-white px-4 py-2 rounded text-sm font-bold"
+          >
+            PDF
+          </button>
+        </div>
+      </header>
+
+      <div class="flex-1 p-6 overflow-y-auto">
+        <div id="editor-wrapper" class="hidden">
+          <div id="editor-container" class="bg-white"></div>
+        </div>
+        <div id="recap-container" class="hidden space-y-4"></div>
+      </div>
+    </main>
+
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <script>
+      // --- GANTI DENGAN URL WEB APP BARU ANDA ---
+      const WEB_APP_URL =
+        "https://script.google.com/macros/s/AKfycbwbYA1lGBNAx56xDN6tVD1Q7Wb-Prd1189nkx2Wz2ZcVHlgKJW2iomniNt8v555ndg/exec";
+
+      var quill = new Quill("#editor-container", { theme: "snow" });
+      let selectedMK = "";
+      let allNotes = []; // Menyimpan semua data catatan
+
+      function refresh() {
+        fetch(WEB_APP_URL)
+          .then((res) => res.json())
+          .then((data) => {
+            allNotes = data.catatan; // Simpan ke variabel global
+            const nav = document.getElementById("listMK");
+            if (!data.mk || data.mk.length === 0) {
+              nav.innerHTML =
+                '<p class="text-indigo-300 text-xs">Belum ada MK.</p>';
+              return;
+            }
+            nav.innerHTML = data.mk
+              .map(
+                (m) => `
+            <div onclick="selectMK('${m[0]}')" class="cursor-pointer p-3 hover:bg-indigo-800 rounded-lg">📘 ${m[0]}</div>
+          `,
+              )
+              .join("");
+          });
+      }
+
+      function selectMK(name) {
+        selectedMK = name;
+        document.getElementById("currentTitle").innerText = name;
+        document.getElementById("subTitle").innerText = "Sedang mengedit";
+        document.getElementById("controls").classList.remove("hidden");
+        document.getElementById("editor-wrapper").classList.remove("hidden");
+        document.getElementById("recap-container").classList.add("hidden");
+        document.getElementById("meetSelect").value = "";
+        quill.root.innerHTML = "";
+      }
+
+      // --- REPLACE FUNGSI DI INDEX.HTML ANDA ---
+      function loadExistingNote() {
+        const ptm = document.getElementById("meetSelect").value;
+
+        // Ambil semua catatan untuk MK dan Pertemuan tersebut
+        const notes = allNotes.filter(
+          (n) => n[0] === selectedMK && n[1] == ptm,
+        );
+
+        if (notes.length > 0) {
+          // Ambil catatan TERAKHIR yang diinput (berdasarkan tanggal di kolom D)
+          // Sesuai dengan appendRow, baris terbawah adalah yang terbaru
+          const lastNote = notes[notes.length - 1];
+          quill.root.innerHTML = lastNote[2]; // Isi konten
+        } else {
+          quill.root.innerHTML = ""; // Kosongkan jika belum ada
+        }
+      }
+
+      function addSubject() {
+        const input = document.getElementById("newMK");
+        if (!input.value) return alert("Isi nama MK!");
+        fetch(WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify({ action: "tambahMK", name: input.value }),
+        }).then(() => {
+          input.value = "";
+          refresh();
+        });
+      }
+
+      function saveNote() {
+        const ptm = document.getElementById("meetSelect").value;
+        if (!ptm) return alert("Pilih pertemuan!");
+        const data = {
+          action: "simpanCatatan",
+          mk: selectedMK,
+          pertemuan: ptm,
+          konten: quill.root.innerHTML,
+        };
+        fetch(WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify(data),
+        }).then(() => {
+          alert("Catatan tersimpan!");
+          refresh();
+        });
+      }
+
+      function showRekap() {
+        document.getElementById("editor-wrapper").classList.add("hidden");
+        document.getElementById("recap-container").classList.remove("hidden");
+        const recapDiv = document.getElementById("recap-container");
+        const filtered = allNotes.filter((n) => n[0] === selectedMK);
+
+        recapDiv.innerHTML = `<h3 class="text-xl font-bold">Rekap: ${selectedMK}</h3>`;
+        if (filtered.length === 0) {
+          recapDiv.innerHTML += `<p class="text-gray-500">Belum ada catatan.</p>`;
+        } else {
+          filtered
+            .sort((a, b) => parseInt(a[1]) - parseInt(b[1]))
+            .forEach((n) => {
+              recapDiv.innerHTML += `
+            <div class="bg-white p-4 rounded shadow">
+              <h4 class="font-bold text-indigo-700">Pertemuan ${n[1]}</h4>
+              <div class="text-sm">${n[2]}</div>
+            </div>`;
+            });
+        }
+      }
+
+      function cetakPDF() {
+        const { jsPDF } = window.jspdf;
+        // Membuat dokumen dengan orientasi Portrait, ukuran A4, satuan mm
+        const doc = new jsPDF("p", "mm", "a4");
+        const logoUrl =
+          "https://cdn-sdotid.adg.id/images/55c9e2f3-8096-495a-9345-f9e10fdbd455_980x979.png";
+
+        let y = 15; // Posisi vertikal awal
+
+        // 1. Menambahkan Logo
+        // Kita gunakan promiss untuk memuat gambar sebelum membuat PDF
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.src = logoUrl;
+
+        img.onload = () => {
+          // Menambahkan gambar logo (posisi x=10, y=10, lebar=20mm, tinggi=20mm)
+          doc.addImage(img, "PNG", 10, 10, 20, 20);
+
+          // 2. Judul Dokumen (di samping logo)
+          doc.setFontSize(18); // Ukuran judul utama
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(30, 30, 80); // Biru Gelap
+          doc.text(`Catatan Kuliah: ${selectedMK}`, 35, 20); // Y = 20
+
+          // --- PERUBAHAN DI SINI ---
+          doc.setFontSize(12); // Ukuran lebih kecil untuk nama
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(100, 100, 100); // Warna abu-abu agar lebih halus
+          doc.text(`Julia Hata`, 35, 28); // Y = 28 (lebih bawah dari judul)
+          // -------------------------
+
+          // Garis pembatas
+          doc.setDrawColor(200, 200, 200);
+          doc.line(10, 35, 200, 35);
+
+          y = 45; // Mulai isi di bawah garis
+
+          const filtered = allNotes.filter((n) => n[0] === selectedMK);
+          filtered
+            .sort((a, b) => parseInt(a[1]) - parseInt(b[1]))
+            .forEach((n) => {
+              // Cek halaman baru
+              if (y > 270) {
+                doc.addPage();
+                y = 20;
+              }
+
+              // 3. Judul Pertemuan
+              doc.setFontSize(14);
+              doc.setFont("helvetica", "bold");
+              doc.setTextColor(60, 60, 150); // Biru Cerah
+              doc.text(`Pertemuan ${n[1]}`, 10, y);
+              y += 8;
+
+              // 4. Isi Catatan
+              doc.setFontSize(11);
+              doc.setFont("helvetica", "normal");
+              doc.setTextColor(0, 0, 0); // Hitam
+
+              const container = document.createElement("div");
+              container.innerHTML = n[2];
+
+              // Ambil elemen untuk diproses
+              const elements = container.querySelectorAll(
+                "p, ul, ol, blockquote, h1, h2, h3",
+              );
+
+              elements.forEach((el) => {
+                let text = el.innerText;
+
+                if (el.tagName === "UL" || el.tagName === "OL") {
+                  const items = el.querySelectorAll("li");
+                  items.forEach((li, index) => {
+                    const prefix =
+                      el.tagName === "OL" ? `${index + 1}. ` : "• ";
+
+                    // Cek ruang halaman
+                    if (y > 280) {
+                      doc.addPage();
+                      y = 20;
+                    }
+
+                    doc.text(prefix + li.innerText, 15, y, { maxWidth: 180 });
+                    y += 6;
+                  });
+                  y += 2;
+                } else {
+                  // Cek ruang halaman
+                  if (y > 280) {
+                    doc.addPage();
+                    y = 20;
+                  }
+                  doc.text(text, 10, y, { maxWidth: 190 });
+                  y += 8;
+                }
+              });
+
+              y += 10; // Spasi antar pertemuan
+            });
+
+          // Simpan PDF
+          doc.save(`Catatan_${selectedMK}.pdf`);
+        };
+      }
+
+      window.onload = refresh;
+    </script>
+  </body>
+</html>
