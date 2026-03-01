@@ -2,6 +2,7 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard Catatan Kuliah</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link
@@ -16,14 +17,26 @@
       .ql-editor {
         font-size: 16px;
       }
+      /* CSS untuk membatasi tinggi editor di mobile */
+      @media (max-width: 640px) {
+        #editor-container {
+          height: 250px;
+        }
+      }
     </style>
   </head>
   <body class="bg-gray-100 flex h-screen overflow-hidden font-sans">
-    <aside class="w-72 bg-indigo-900 text-white flex flex-col shadow-xl">
+    <aside
+      id="sidebar"
+      class="fixed inset-y-0 left-0 z-50 w-64 bg-indigo-900 text-white flex flex-col shadow-xl transform -translate-x-full transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:w-72"
+    >
       <div
-        class="p-6 text-2xl font-bold border-b border-indigo-800 flex items-center gap-2"
+        class="p-6 text-2xl font-bold border-b border-indigo-800 flex items-center justify-between gap-2"
       >
-        <span>📚</span> MyNotes
+        <span>📚 MyNotes</span>
+        <button onclick="toggleSidebar()" class="md:hidden text-white">
+          &times;
+        </button>
       </div>
       <div class="p-4 border-b border-indigo-800">
         <input
@@ -45,54 +58,78 @@
       ></nav>
     </aside>
 
-    <main class="flex-1 flex flex-col">
+    <main class="flex-1 flex flex-col overflow-hidden">
       <header
-        class="bg-white shadow-md p-4 flex justify-between items-center px-8"
+        class="bg-white shadow-md p-4 flex justify-between items-center px-4 md:px-8"
       >
-        <div>
-          <h2 id="currentTitle" class="text-xl font-bold text-gray-800">
-            Pilih MK
-          </h2>
-          <p id="subTitle" class="text-sm text-gray-500">
-            Pilih mata kuliah di sidebar
-          </p>
+        <div class="flex items-center gap-3">
+          <button onclick="toggleSidebar()" class="md:hidden text-indigo-900">
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 6h16M4 12h16M4 18h16"
+              ></path>
+            </svg>
+          </button>
+          <div>
+            <h2
+              id="currentTitle"
+              class="text-lg md:text-xl font-bold text-gray-800 truncate"
+            >
+              Pilih MK
+            </h2>
+            <p id="subTitle" class="text-xs md:text-sm text-gray-500">
+              Pilih mata kuliah di sidebar
+            </p>
+          </div>
         </div>
-        <div id="controls" class="hidden flex items-center gap-2">
+
+        <div id="controls" class="hidden flex items-center gap-1 md:gap-2">
           <select
             id="meetSelect"
-            class="border p-2 rounded text-sm"
+            class="border p-1 md:p-2 rounded text-xs md:text-sm"
             onchange="loadExistingNote()"
           >
-            <option value="" selected disabled>Pilih Ptm</option>
+            <option value="" selected disabled>Ptm</option>
             <script>
               for (let i = 1; i <= 16; i++)
-                document.write(`<option value="${i}">Pertemuan ${i}</option>`);
+                document.write(`<option value="${i}">${i}</option>`);
             </script>
           </select>
           <button
             onclick="saveNote()"
-            class="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-bold"
+            class="bg-indigo-600 text-white px-3 md:px-4 py-1.5 md:py-2 rounded text-xs md:text-sm font-bold"
           >
             Simpan
           </button>
           <button
             onclick="showRekap()"
-            class="bg-amber-500 text-white px-4 py-2 rounded text-sm font-bold"
+            class="bg-amber-500 text-white px-3 md:px-4 py-1.5 md:py-2 rounded text-xs md:text-sm font-bold"
           >
             Rekap
           </button>
           <button
             onclick="cetakPDF()"
-            class="bg-red-500 text-white px-4 py-2 rounded text-sm font-bold"
+            class="bg-red-500 text-white px-3 md:px-4 py-1.5 md:py-2 rounded text-xs md:text-sm font-bold"
           >
             PDF
           </button>
         </div>
       </header>
 
-      <div class="flex-1 p-6 overflow-y-auto">
+      <div class="flex-1 p-3 md:p-6 overflow-y-auto bg-gray-50">
         <div id="editor-wrapper" class="hidden">
-          <div id="editor-container" class="bg-white"></div>
+          <div
+            id="editor-container"
+            class="bg-white shadow-lg rounded-lg overflow-hidden"
+          ></div>
         </div>
         <div id="recap-container" class="hidden space-y-4"></div>
       </div>
@@ -100,19 +137,23 @@
 
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
     <script>
-      // --- GANTI DENGAN URL WEB APP BARU ANDA ---
       const WEB_APP_URL =
         "https://script.google.com/macros/s/AKfycbwbYA1lGBNAx56xDN6tVD1Q7Wb-Prd1189nkx2Wz2ZcVHlgKJW2iomniNt8v555ndg/exec";
-
       var quill = new Quill("#editor-container", { theme: "snow" });
       let selectedMK = "";
-      let allNotes = []; // Menyimpan semua data catatan
+      let allNotes = [];
+
+      // Fungsi untuk membuka/menutup sidebar di mobile
+      function toggleSidebar() {
+        const sidebar = document.getElementById("sidebar");
+        sidebar.classList.toggle("-translate-x-full");
+      }
 
       function refresh() {
         fetch(WEB_APP_URL)
           .then((res) => res.json())
           .then((data) => {
-            allNotes = data.catatan; // Simpan ke variabel global
+            allNotes = data.catatan;
             const nav = document.getElementById("listMK");
             if (!data.mk || data.mk.length === 0) {
               nav.innerHTML =
@@ -121,9 +162,8 @@
             }
             nav.innerHTML = data.mk
               .map(
-                (m) => `
-            <div onclick="selectMK('${m[0]}')" class="cursor-pointer p-3 hover:bg-indigo-800 rounded-lg">📘 ${m[0]}</div>
-          `,
+                (m) =>
+                  `<div onclick="selectMK('${m[0]}'); toggleSidebar();" class="cursor-pointer p-3 hover:bg-indigo-800 rounded-lg truncate">📘 ${m[0]}</div>`,
               )
               .join("");
           });
@@ -140,22 +180,16 @@
         quill.root.innerHTML = "";
       }
 
-      // --- REPLACE FUNGSI DI INDEX.HTML ANDA ---
       function loadExistingNote() {
         const ptm = document.getElementById("meetSelect").value;
-
-        // Ambil semua catatan untuk MK dan Pertemuan tersebut
         const notes = allNotes.filter(
           (n) => n[0] === selectedMK && n[1] == ptm,
         );
-
         if (notes.length > 0) {
-          // Ambil catatan TERAKHIR yang diinput (berdasarkan tanggal di kolom D)
-          // Sesuai dengan appendRow, baris terbawah adalah yang terbaru
           const lastNote = notes[notes.length - 1];
-          quill.root.innerHTML = lastNote[2]; // Isi konten
+          quill.root.innerHTML = lastNote[2];
         } else {
-          quill.root.innerHTML = ""; // Kosongkan jika belum ada
+          quill.root.innerHTML = "";
         }
       }
 
@@ -194,7 +228,6 @@
         document.getElementById("recap-container").classList.remove("hidden");
         const recapDiv = document.getElementById("recap-container");
         const filtered = allNotes.filter((n) => n[0] === selectedMK);
-
         recapDiv.innerHTML = `<h3 class="text-xl font-bold">Rekap: ${selectedMK}</h3>`;
         if (filtered.length === 0) {
           recapDiv.innerHTML += `<p class="text-gray-500">Belum ada catatan.</p>`;
@@ -203,103 +236,73 @@
             .sort((a, b) => parseInt(a[1]) - parseInt(b[1]))
             .forEach((n) => {
               recapDiv.innerHTML += `
-            <div class="bg-white p-4 rounded shadow">
-              <h4 class="font-bold text-indigo-700">Pertemuan ${n[1]}</h4>
-              <div class="text-sm">${n[2]}</div>
-            </div>`;
+              <div class="bg-white p-4 rounded-lg shadow-sm">
+                <h4 class="font-bold text-indigo-700">Pertemuan ${n[1]}</h4>
+                <div class="text-sm mt-2">${n[2]}</div>
+              </div>`;
             });
         }
       }
 
       function cetakPDF() {
         const { jsPDF } = window.jspdf;
-        // Membuat dokumen dengan orientasi Portrait, ukuran A4, satuan mm
         const doc = new jsPDF("p", "mm", "a4");
         const logoUrl =
           "https://cdn-sdotid.adg.id/images/55c9e2f3-8096-495a-9345-f9e10fdbd455_980x979.png";
-
-        let y = 15; // Posisi vertikal awal
-
-        // 1. Menambahkan Logo
-        // Kita gunakan promiss untuk memuat gambar sebelum membuat PDF
+        let y = 15;
         const img = new Image();
         img.crossOrigin = "Anonymous";
         img.src = logoUrl;
-
         img.onload = () => {
-          // Menambahkan gambar logo (posisi x=10, y=10, lebar=20mm, tinggi=20mm)
           doc.addImage(img, "PNG", 10, 10, 20, 20);
-
-          // 2. Judul Dokumen (di samping logo)
-          doc.setFontSize(18); // Ukuran judul utama
+          doc.setFontSize(18);
           doc.setFont("helvetica", "bold");
-          doc.setTextColor(30, 30, 80); // Biru Gelap
-          doc.text(`Catatan Kuliah: ${selectedMK}`, 35, 20); // Y = 20
-
-          // --- PERUBAHAN DI SINI ---
-          doc.setFontSize(12); // Ukuran lebih kecil untuk nama
+          doc.setTextColor(30, 30, 80);
+          doc.text(`Catatan Kuliah: ${selectedMK}`, 35, 20);
+          doc.setFontSize(12);
           doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100); // Warna abu-abu agar lebih halus
-          doc.text(`Julia Hata`, 35, 28); // Y = 28 (lebih bawah dari judul)
-          // -------------------------
-
-          // Garis pembatas
+          doc.setTextColor(100, 100, 100);
+          doc.text(`Julia Hata`, 35, 28);
           doc.setDrawColor(200, 200, 200);
           doc.line(10, 35, 200, 35);
-
-          y = 45; // Mulai isi di bawah garis
-
+          y = 45;
           const filtered = allNotes.filter((n) => n[0] === selectedMK);
           filtered
             .sort((a, b) => parseInt(a[1]) - parseInt(b[1]))
             .forEach((n) => {
-              // Cek halaman baru
               if (y > 270) {
                 doc.addPage();
                 y = 20;
               }
-
-              // 3. Judul Pertemuan
               doc.setFontSize(14);
               doc.setFont("helvetica", "bold");
-              doc.setTextColor(60, 60, 150); // Biru Cerah
+              doc.setTextColor(60, 60, 150);
               doc.text(`Pertemuan ${n[1]}`, 10, y);
               y += 8;
-
-              // 4. Isi Catatan
               doc.setFontSize(11);
               doc.setFont("helvetica", "normal");
-              doc.setTextColor(0, 0, 0); // Hitam
-
+              doc.setTextColor(0, 0, 0);
               const container = document.createElement("div");
               container.innerHTML = n[2];
-
-              // Ambil elemen untuk diproses
               const elements = container.querySelectorAll(
                 "p, ul, ol, blockquote, h1, h2, h3",
               );
-
               elements.forEach((el) => {
                 let text = el.innerText;
-
                 if (el.tagName === "UL" || el.tagName === "OL") {
                   const items = el.querySelectorAll("li");
                   items.forEach((li, index) => {
                     const prefix =
                       el.tagName === "OL" ? `${index + 1}. ` : "• ";
-
-                    // Cek ruang halaman
                     if (y > 280) {
                       doc.addPage();
                       y = 20;
                     }
-
                     doc.text(prefix + li.innerText, 15, y, { maxWidth: 180 });
                     y += 6;
                   });
                   y += 2;
                 } else {
-                  // Cek ruang halaman
                   if (y > 280) {
                     doc.addPage();
                     y = 20;
@@ -308,15 +311,11 @@
                   y += 8;
                 }
               });
-
-              y += 10; // Spasi antar pertemuan
+              y += 10;
             });
-
-          // Simpan PDF
           doc.save(`Catatan_${selectedMK}.pdf`);
         };
       }
-
       window.onload = refresh;
     </script>
   </body>
